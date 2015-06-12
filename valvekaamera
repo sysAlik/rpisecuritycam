@@ -1,0 +1,111 @@
+
+Ühenda lahti seade käsuga umount /seade/partitsioonid 
+
+
+Raspbiani OS mälukaardile käsuga
+dd bs=4M if= img_faili_asukoht (ole juurikaga seal kaustas kus img fail asub) of=/dev/seadme nimi_ilma_partitsioonita 
+Logime raspberry masinasse (edaspidi RPI) üle ssh, vajalik kaabliga kohtvõrgu ühendus
+pi@ip_aadress → parool
+Esimese asjana uuendused
+apt-get update && apt-get dist-upgrade -y
+siis pi kasutaja parooli vahetus
+passwd pi
+siis configureerime raspberry pi conf faili kaudu käsuga
+sudo raspi-config
+sealt menüüdest
+1 Expand filesystem
+8 advanced options → A4 SSH → enable
+8 advanced options → A0 Update
+RPI-le restart
+sudo reboot
+Lõin läbi ssh turvalise ühenduse Raspberry Pi (edaspidi RPI) masinaga omast läptopist. Kaughaldust oli vaja kuna kõik kodused ekraanid olid hõivatud ja tahtsin just testimise pärast proovida kuidas on oma sülearvutist näha RPI pilti ilma, et masin ise oleks mingi ekraaniga ühendatud. Otsustasin selleks kasutada vabavaralist programmi TightVNC. See on server-klient põhine virtuaalühenduse loomise tarkvara.
+Juhend selle teostamiseks asub aadressil:
+http://www.penguintutor.com/linux/tightvnc . Eelduseks on RPI olemasolu, sinna ühendatud SD mälukaart, millel omakorda installeeritud Raspbian-i operatsioonisüsteem ning kohtvõrgu ühendus kaabliga või siis eelnevalt kofigureeritud wifi kaardi ühendus.
+Kõigest aga samm sammult:
+1. RPI masinasse (masin millesse tahame sisse minna ehk host) tightvnc serveri poole install
+sudo apt-get install tightvncserver
+2. Laadisin alla tightvnc serveri automaatseks käivitamiseks kui masin käivitatakse ja turvalise ühenduse konfigureerimiseks järgmise faili ning liigutasin selle teenuste käivitamise kausta /etc/init.d/:
+wget http://www.penguintutor.com/otherfiles/tightvncserver-init.txt
+
+sudo mv tightvncserver-init.txt /etc/init.d/tightvncserver
+
+3. Seejärel muutsin faili käivitatavuse ja omaniku:
+sudo chown root:root /etc/init.d/tightvncserver
+sudo chmod 755 /etc/init.d/tightvncserver
+4. Lisasin scripti serveri algseadesse viimiseks
+sudo update-rc.d tightvncserver defaults
+5. Restardi RPI
+sudo reboot
+6. Käsitsi saab teenust käima ja seisma järgmiste käskudega
+sudo /etc/init.d/tightvncserver start
+sudo /etc/init.d/tightvncserver stop
+Nüüd siis teise poole install ehk masin millest tahame RPI masinasse minna:
+1. Installime VNC kliendi ehk Tightvnc viewer-i
+sudo apt-get install ssvnc
+2. Tekitame turvalise tunneli. Piirame ühenduse ainult lokaalse masina peale, selleks muudame faili /etc/init.d/tightvncserver 23ndat rida ning see peaks nüüd nägema välja järgmine:
+su $USER -c '/usr/bin/tightvncserver -localhost :1'
+3. Restardime serveri (RPI masina)
+4. Logi nüüd turvalise tunneliga sisse RPI masinasse
+5. ssh pi@192.168.1.X -L 5901:localhost:5901 (-L loob tunneli, port 5901 on displei nr 1 jaoks, port 5902 displei nr 2 jne)
+6. Avame terminalis teise akna ning sealt läheme RPI tightvnc serverisse pildiga käsuga 
+xtightvncviewer 127.0.0.1:1
+7. Ja voila, tightvnc viewer avaneb pildiga
+
+
+Nüüd teeme igaks juhuks ka SD cardist backupi, antud tegevust Linuxi süsteemides kirjeldab hästi järgmine e-raamat “Raspberry Pi for Secret Agents (second edition)” leheküljel 22-23.
+Seadistame ka wifi, et muuta valvekaamera mobiilseks
+selleks lisame faili /etc/network/interfaces järgmised read
+wpa-ssid “minu wifi võrgu ssid"
+wpa-psk "minu wifi võrgu parool"
+Käivitame wifi adapteri käsuga
+/etc/init.d/networking restart
+Viide: “Idiot's guides: as easy as it gets!” Thorin Klosowski raamat.
+Siis installime motion paki
+apt-get install motion
+ning kofigureerime motion.conf faili
+sudo nano /etc/motion/motion.conf → daemon on → webcam_localhost off ja muud tuled viled vastavalt soovidele (pildi suurus ja kaadrisagedus, välisele kõvakettale salvestamine jne)
+sudo nano /etc/default/motion → start_motion_daemon yes, et motion läheks alglaadimisel kohe daemon teenusena käima.
+Käivitame teenuse
+sudo service motion start
+
+Nüüd valvekaamera töötab ja salvestab liikumise peale videoid.
+http://www.instructables.com/id/Raspberry-Pi-remote-webcam/?ALLSTEPS 
+Välisest võrgust vaatamiseks oleks mõistlik RPI-le panna staatiline IP
+konfigureerides faili /etc/network/interfaces määrame DHCP static ja lisame
+address xxx.xxx.x.xx
+netmask xxx.xxx.xxx.x
+network xxx.xxx.x.xx
+broadcast xxx.xxx.x.xx
+gateway xxx.xxx.x.xx
+Teiseks on vaja routerist suunata port (meie näite puhul 8080 siis vastavalt meie sisevõrgu pi ip aadressile
+
+Kolmandaks peaks routeris olema lubatud DNS teenus
+Neljandaks tuleb kasutada mingi kolmanda osapoole veebiserverit (näiteks lighttpd Web server). Selle toetustegevuseks tuleb installida ka ddclient ning konfigureerida fail 
+/etc/ddclient/ddclient.conf
+sudo nano /etc/ddclient/ddclient.conf
+ Siis saab vastavalt omanimelise saidi näiteks vaarikaspi.com:8080 pealt jälgida oma veebikaameras toimuvat. Ja sinu kodu ongi valvatud.
+Täiesti autonoomseks saab kaamera teha näiteks modemi pulga ja internetipaketiga ning akupakiga.
+Selleks on vaja täiendavalt installida pakk ppp
+apt-get install ppp
+ ning laadida alla http://www.sakis3g.com/ kodulehelt sakis3g script, millele käivitusõiguste andmisega saab vastava teenusepakkuja SIM kaardi ühendada välise internetivõrguga
+./sakis3g
+ Lisaks on võimalik RPI käima panna ka akude pealt, ütleme metsakaameraks. Vaadata tuleks et Pi ei saaks üle 5V pinget (1.5-2A).
+Täiendavalt konfigureerime motioni saatma määratua mailile kirja kui liikumine on avastatud ja alustatakse pildi salvestamist. Näiteks hea nutitelefonile saada e-mail, et midagi on lahti ning siis kiirelt minna veebi kaudu vaatama mis kaameras toimub. Selleks avame faili 
+sudo nano /etc/motion.conf
+Reale on_picture_save value →  on_picture_save mpack -s Alert %f minumail@gmail.com, 
+
+Maksumus (enamjaolt arvestatud ebay.com hindadega):
+RPI 2 – ca 40 dollarit, okjsonilt ja kasutatult ka juba 30 dollari ringis (27 eurot)
+Veebikaamera meie näite puhul oli väga korralik veebikaamera full hd resolutsiooniga (mis ka reaalselt RPI peal töötas) maksumus ca 80 dollarit (72 eurot)
+USB modem 3,5G – Tele2-st kasutatud 10 eurot 
+RPI wifi pulk – ca 20 dollarit
+SIM kaardile 3Mbit internetipakett piiramatu mahuga minu puhul 10 eurot/kuus
+Petukaamera, kuhu sisse saab kaamera panna – ca 5 eurot tellides ebayst.
+Salvestamiseks sobib Wstern Digitali 500GB väline kõvaketas ca 40 dollarit (36 eurot) - 
+Kogumaksumus ilma täiendavate akudeta (muus osas autonoomne):
+27+72+10+18+10+5+36=178 eurot. Oluliselt saab kärpida kaamera hinnast, sültuvalt kaamera eesmärgist (teavitava kaamera jaoks piisab ka nõrgemast kui meie näites).
+
+Luhutunud projektid:
+Servomootoritega RPI robot millel on live streamiga kaamera peal, juhitav üle kohtvõrgu wifiga. Selle projekti puhul takerdusin üle võrgu juhtimisse, programmeerimise aluste teadmiste puudumise tõttu.
+Teine projekt oli vargaalarm, mille ide oli selles et RPI külge ühendatud veebikaamera avastab liikumise (veebikaamera+motion pakk on linuxi all väga hea liikumissensor) ning saadab mööda HDMI kaablit televiisorile signaali käima minna. Viimase käivitudes tuleks ette varem salvestatud video koos häälega mis peaks varga “läbi sõimama”. Kahjuks ei ole mingitel põhjustel HDMI signaal enam RPI-le kompileeritav ja takerdusin sinna.
+Kokkuvõtvalt veetsin sõbra “vaarikaga” üsna kvaliteetselt aega ja need on parimad õppetunnid. 
